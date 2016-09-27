@@ -1,0 +1,31 @@
+# .eng.utah.edu machines
+PUBDIR = /home/cs5460/projects/yalnix/public
+
+# .cs.utah.edu machines
+#PUBDIR = /uusoc/sys/classes/cs5460/projects/yalnix/public
+
+LIBDIR = $(PUBDIR)/lib
+INCDIR = $(PUBDIR)/include
+ETCDIR = $(PUBDIR)/etc
+
+CC = gcc
+CFLAGS = -DLINUX -g -m32
+CPPFLAGS = -I. -I$(INCDIR) 
+LDFLAGS = -static -Wl,-T,$(ETCDIR)/user.x -u exit -u __brk -u __sbrk -u __mmap -L $(LIBDIR) -luser -D__ASM__ -u __default_morecore
+
+# Add the name of each of your user programs here.
+BINS = init shell console checkpoint
+
+%.o: %.c
+	$(CC) $(CPPFLAGS) $(USER_CFLAGS) -c $(@:%.o=%.c)
+
+%: %.o $(USER_LIBS)
+	$(LINK_USER) -o $@ $*.o $(USER_LDFLAGS)
+	echo hello
+
+all:	$(BINS)
+	# cp $(BINS) ..
+
+clean:
+	rm -f $(BINS) *.o
+	cd .. ; rm -f $(BINS)

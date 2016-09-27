@@ -1,0 +1,108 @@
+import os
+Import( 'userEnv' )
+
+# libenv = Environment( ENV = os.environ )
+libenv = userEnv.Copy()
+
+libenv.Append( CCFLAGS = ['-Wall','-W','-Wconversion','-O3','-fomit-frame-pointer'] )
+libenv.Replace( LINKFLAGS = [])
+libenv.Replace( LIBS = [])
+libenv.Append( CPPDEFINES = 'NDEBUG' )
+libenv.Append( CPPPATH = ['include','mpqs','gnfs','common'] )
+
+lib_source = Split("""
+common/lanczos/lanczos.c
+common/lanczos/lanczos_matmul.c
+common/lanczos/lanczos_pre.c
+common/ap.c
+common/driver.c
+common/expr_eval.c
+common/fastmult.c
+common/integrate.c
+common/mp.c
+common/prime_sieve.c
+common/rho.c
+common/squfof.c
+common/tinyqs.c
+common/util.c
+mpqs/gf2.c
+mpqs/mpqs.c
+mpqs/poly.c
+mpqs/relation.c
+mpqs/sieve.c
+mpqs/sqrt.c
+gnfs/poly/poly.c
+gnfs/poly/polyroot.c
+gnfs/poly/polyutil.c
+gnfs/poly/poly_noskew.c
+gnfs/poly/poly_skew.c
+gnfs/poly/skew_sieve.c
+gnfs/filter/clique.c
+gnfs/filter/duplicate.c
+gnfs/filter/filter.c
+gnfs/filter/merge.c
+gnfs/filter/merge_post.c
+gnfs/filter/merge_pre.c
+gnfs/filter/merge_util.c
+gnfs/filter/singleton.c
+gnfs/sqrt/sqrt.c
+gnfs/sqrt/sqrt_a.c
+gnfs/fb.c
+gnfs/ffpoly.c
+gnfs/gf2.c
+gnfs/gnfs.c
+gnfs/relation.c
+gnfs/sieve.c
+""");
+
+def sieveX( size, cpu, name ):
+	env = libenv.Copy()
+	env.BuildDir( name, 'mpqs' )
+	env.Append( CPPDEFINES = ['BLOCK_KB=%s' % size, 'CPU_%s' % cpu, 'ROUTINE_NAME=%s' % name] )
+	return env.StaticObject( '%s/sieve_core.c' % name )
+
+def sieveGeneric32():
+	return sieveX( size = '32', cpu = 'GENERIC', name = 'qs_core_sieve_generic_32k' )
+
+def sieveGeneric64():
+	return sieveX( size = '64', cpu = 'GENERIC', name = 'qs_core_sieve_generic_64k' )
+
+def sieveCore32():
+	return sieveX( size = '32', cpu = 'GENERIC', name = 'qs_core_sieve_core_32k' )
+
+def sieveP464k():
+	return sieveX( size = '64', cpu = 'PENTIUM4', name = 'qs_core_sieve_p4_64k' )
+
+def sieveP364k():
+	return sieveX( size = '64', cpu = 'PENTIUM3', name = 'qs_core_sieve_p3_64k' )
+
+def sieveP264k():
+	return sieveX( size = '64', cpu = 'PENTIUM2', name = 'qs_core_sieve_p2_64k' )
+
+def sievePM32k():
+	return sieveX( size = '32', cpu = 'PENTIUM_M', name = 'qs_core_sieve_pm_32k' )
+
+def sieveK764k():
+	return sieveX( size = '64', cpu = 'ATHLON', name = 'qs_core_sieve_k7_64k' )
+
+def sieveK7XP64k():
+	return sieveX( size = '64', cpu = 'ATHLON_XP', name = 'qs_core_sieve_k7xp_64k' )
+
+def sieveK864k():
+	return sieveX( size = '64', cpu = 'OPTERON', name = 'qs_core_sieve_k8_64k' )
+
+sieves = [ sieveGeneric32, sieveGeneric64, sieveCore32, sieveP464k, sieveP364k, sieveP264k, sievePM32k, sieveK764k, sieveK7XP64k, sieveK864k ]
+
+for i in sieves:
+	lib_source.append( i() )
+
+msieve_lib = libenv.StaticLibrary( 'msieve', lib_source )
+
+# env = uEnvironment( ENV = os.environ )
+env = userEnv.Copy()
+env.Append( CPPPATH = 'include' )
+# env.Append( LIBS = ['pthread',msieve_lib,'m'] )
+env.Append( LIBS = [msieve_lib,'m'] )
+# env.Append( CPPPATH = 'include' )
+msieve = env.Program( 'msieve', 'demo.c' )
+Return( 'msieve' )

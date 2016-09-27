@@ -1,0 +1,129 @@
+CS6460 Yalnix project
+
+Group members
+-------------
+Jon Rafkind - rafkind@cs.utah.edu
+
+**** Building
+
+$ make
+
+OR
+
+$ scons
+
+If 'scons' doesn't work type 'make'. It will use a failsafe script that does not use scons in the worst case.
+
+**** Running
+
+$ ./yalnix some-program
+
+Or to get a unix-like environment
+
+$ ./yalnix init
+
+'init' will start a console, bash, and shell. shell is the provided yalnix shell that will exec processes typed on the command line. bash is an enhanced shell that knows about the filesystem. In particular the features of bash over shell are
+ * Knows the current directory, displayed in the prompt: yalnix-bash /foo $
+ * Always passes the terminal bash is running in and the current directory as the first two arguments to spawned programs so any program that is designed to work with bash will not work properly with 'shell'
+
+**** Testing
+
+Some tests exist in user/. Give them as arguments to yalnix to run them like so.
+
+$ ./yalnix user/dummy
+
+Available tests for shell/plain yalnix:
+user/checkpoint # Prints a message for each argument
+user/console # Standard console
+user/copy-from-to # Tests CopyFrom() and CopyTo()
+user/cycle # Just a while loop
+user/delay # Calls Delay() a few times
+user/dummy # Does nothing, returns 19 as the exit code
+user/evil # Try to get the OS to access memory it shouldn't through system calls
+user/fork # Tests fork. spawns dummy, checkpoint and delay
+user/guess # Number guessing game
+user/huge # Does nothing, has a huge .data section
+user/init # Standard init program
+user/ipc # Tests more ipc calls, ReceiveSpecific
+user/math # Performs an illegal math operation
+user/memory # Tests malloc
+user/memory_hog # Break the program by running out of memory via malloc
+user/messaging # Tests some ipc calls, Send() and Receive()
+user/msieve # Real world integer factoring program altered to run in yalnix
+user/pause # Just call Pause()
+user/pid # Print the pid itself
+user/ping # Send a message to the ping server
+user/ping-server # Registers a server that receives and sends simple messages
+user/recursion # Recursively calls the same function over until the stack overflows
+user/shell # Standard shell
+user/stack # Touch memory that is out of the bounds of the stack pointer
+user/time # Exec's its argument and prints the time taken for the argument to complete
+
+Bash programs:
+cat - print the contents of a file
+cp - copy a file
+echo - sort of like unix echo but designed to pipe words into a file. ./echo hello > x
+ln - make a hard link to a file/directory
+ls - list files/directories. give -r for recursing directories
+mkdir - create a directory
+portal - copy a file from the outside world into the yalnix system
+rm - erase a file/directory
+stat - show the filesize of a file
+sync - make sure file/directory is sync'd to the "hard drive"
+touch - create an empty file
+walk - walk file tree and print each file/directory along the way
+zero - create a file and fill it with # zeros. ./zero foo 100
+
+Most of these are copied to the current directory so you don't have to type user/ls
+
+**** Architecture
+
+Memory( memory.c ): after mapping the kernel code/data and stack all other pages are stored in a linked list. A call to get_free_page will return a free physical page of memory or 0 if none are left. Each process has a table of these pages and fills them up as needed. Any element of this table which is 0 means that virtual frame number is invalid for that process. When the os context switches to a new process the region 1 page table is updated with any pages that the process currently has.
+
+Scheduling( schedule.c ): processes are scheduled with a round robin scheduler that works in O(1) time. Processes are stored on different lists depending on the state of the process. Each list and its purpose is given here:
+	run_list - runnable
+	io_list - waiting on tty io
+	ipc_list - waiting on ipc
+	delayed_list - waiting due to Delay()
+	busy_list - any other waiting, mostly due to Wait()
+	disk_list - waiting for disk i/o
+
+The currently running process is stored in 'current_process' which points to something in run_list. To schedule a new process all that is needed is to get the next process via current_process->next. All of the lists above are non-circular lists except for run_list. In this way the OS can keep calling current_process->next to get the next process. run_list itself points to the idle process. Whenever the OS chooses a new process it attempts to skip the run_list, unless of course run_list.next == run_list. When a process makes a blocking system call it is removed from the run_list and put on one of the above lists.
+
+The use of linked lists makes the scheduling code kind of ugly sometimes and I wish I could avoid that, but such is life when using C to implement anything.
+
+FileServer( user/file-server/file-server.c, fs/fs.c ): The file server is a user process that interacts with other processes via ipc( Send/Reply ). User processes should use fs/fs.c to communicate with the file server. All the procedures outlined in the disk document are implemented in fs/fs.c as well as GetPath and IsDirectory. 'init' starts up the file server but the file server can also be started on the command line as long as it's the last argument to yalnix. e.g:
+
+./yalnix walk fileserver
+NOT
+./yalnix fileserver walk
+
+The reason for this is yalnix will run processes in reverse order from how they are given on the command line and the fileserver needs to run first.
+
+When the fileserver comes up it first checks if there is a valid filesystem in the disk by checking the first few bytes of sector 1 against a known constant. If these bytes do not match, the fileserver will create a new filesystem with one directory, /. To make sure the filesystem is saved to physical media the Shutdown() procedure should be called by some other user process. Right now 'init' will do this when given the 'halt' instruction. If the filesystem is saved then the next time the fileserver is started it will read the contents of the physical media and recreate the filesystem as it was before.
+
+***** History
+
+11/4/2007
+---------
+Tidy up some things so it can be submitted for grading.
+
+10/25/2007
+----------
+Finished the file server which manages a simple file system.
+
+10/21/2007
+----------
+Project2: Completed everything listed in the yalnix overview. All that is left is disk access, I think.
+
+10/12/2007
+----------
+Project2: Fixed some bugs in the task switching. Can load arbitrary programs into yalnix. Handle stack growth and syscalls brk() and exit().
+
+10/11/2007
+----------
+Project2: Implemented processes and can task switch between 3 processes.
+
+8/30/2007
+---------
+Project1: Complete
